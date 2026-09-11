@@ -889,6 +889,7 @@ export function ResultPreviewGallery({
       return
     }
     const nextRunId = selectedAccountRuns[0]?.runId
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- default the account view to its first run
     if (nextRunId) setSelectedRunId(nextRunId)
   }, [accountPerspective, open, selectedAccountRuns, selectedRunId])
 
