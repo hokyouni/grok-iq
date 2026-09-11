@@ -1677,7 +1677,9 @@ def _public_provider_capacity(value: Any) -> dict[str, int]:
     available = _count(payload.get("available"))
     if total <= 0:
         return {"capacity": 0}
-    return {"capacity": round(available / total * 100)}
+    # round() is banker's rounding (62.5 -> 62); the public capacity card
+    # expects conventional half-up (62.5 -> 63).
+    return {"capacity": int(available / total * 100 + 0.5)}
 
 
 def _public_upstream_summary(raw: Any, *, reachable: bool) -> dict[str, Any]:
