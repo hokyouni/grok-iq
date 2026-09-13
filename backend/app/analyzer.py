@@ -750,7 +750,11 @@ for _builtin_rule in (
         "缓冲型强异常",
         "强异常 TPS 同时满足缓冲特征",
         _rule_buffered_hard,
-        scopes=frozenset({"probe"}),
+        # Audit scope too: a long-reasoning-then-burst response (first token
+        # after 20s+, whole answer delivered in ~1s) is normal for reasoning
+        # models. Without this rule on audit rows, fast_risk (tps_only) fires
+        # on the burst TPS and mass-isolates healthy accounts.
+        scopes=frozenset({"probe", "audit"}),
         priority=90,
         classification="buffered_hard",
         anomalous=True,

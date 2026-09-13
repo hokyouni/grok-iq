@@ -60,13 +60,15 @@ def test_media_input_high_tps_is_observed_instead_of_high_risk():
 
 
 def test_media_input_observation_can_be_disabled():
+    # Sustained fast generation (real window, no buffering) so the disabled
+    # media observation falls through to the genuinely hard fast_risk rule.
     result = classify_audit_sample(
         status_code=200,
-        output_tokens=42,
-        reasoning_tokens=20,
-        first_token_ms=3139,
-        duration_ms=3149,
-        tps=4200,
+        output_tokens=3000,
+        reasoning_tokens=0,
+        first_token_ms=200,
+        duration_ms=6200,
+        tps=500.0,
         thresholds=Thresholds(media_input_observe_enabled=False),
         extra={"media_input_images": 3},
     )
@@ -593,3 +595,59 @@ def test_audit_upstream_error_code_is_not_a_successful_2xx():
     assert result.name == "error"
     assert result.rule_id == "http_error"
     assert "upstream_stream_interrupted" in result.reasons[0]
+
+
+def test_audit_reasoning_burst_tps_is_buffered_hard_not_fast_risk():
+    # Real-world shape of a healthy grok-4.6 answer: ~28s of reasoning, then
+    # the whole answer delivered in ~1.2s. Window TPS lands far above the
+    # strong threshold, but the burst is buffered, not sustained generation.
+    result = classify_audit_sample(
+        status_code=200,
+        output_tokens=1571,
+        reasoning_tokens=2632,
+        first_token_ms=28_014,
+        duration_ms=29_193,
+        tps=1309.2,
+        thresholds=Thresholds(),
+    )
+
+    assert result.name == "high"
+    assert result.rule_id == "buffered_hard"
+    assert result.hard is True
+    assert result.buffered is True
+
+
+def test_audit_short_generation_window_is_buffered_hard_not_fast_risk():
+    # generation_ms < min_generation_ms also marks buffering; tiny tails must
+    # not reach the tps_only isolation rule either.
+    result = classify_audit_sample(
+        status_code=200,
+        output_tokens=28,
+        reasoning_tokens=1145,
+        first_token_ms=1095,
+        duration_ms=1097,
+        tps=14_000,
+        thresholds=Thresholds(),
+    )
+
+    assert result.name == "high"
+    assert result.rule_id == "buffered_hard"
+    assert result.buffered is True
+
+
+def test_audit_sustained_fast_generation_still_hits_fast_risk():
+    # Genuine degradation: no reasoning, no buffering, the answer streams at
+    # an impossible sustained rate across a real generation window.
+    result = classify_audit_sample(
+        status_code=200,
+        output_tokens=3000,
+        reasoning_tokens=0,
+        first_token_ms=200,
+        duration_ms=6_200,
+        tps=500.0,
+        thresholds=Thresholds(),
+    )
+
+    assert result.name == "high"
+    assert result.rule_id == "fast_risk"
+    assert result.buffered is False
