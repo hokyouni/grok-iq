@@ -573,7 +573,17 @@ class AccountRepository:
                 if classified.anomalous and classified.name in anomaly_names
             ]
             anomalies = [row for row, _classified in anomaly_pairs]
-            hard = [row for row, classified in anomaly_pairs if classified.hard]
+            # Buffered bursts (long thinking, whole answer delivered in one
+            # flush) are the normal reasoning-model delivery shape; probe
+            # responses with correct markers classify as buffered_hard. They
+            # stay anomalous for observation but must not escalate the risk
+            # cycle to high_risk isolation on their own — sustained-fast
+            # (fast_risk) and marker misses keep that authority.
+            hard = [
+                row
+                for row, classified in anomaly_pairs
+                if classified.hard and classified.name != "buffered_hard"
+            ]
             fast = [row for row, classified in anomaly_pairs if classified.name == "fast_risk"]
             marker = [
                 row for row, classified in anomaly_pairs if classified.name == "marker_miss"
